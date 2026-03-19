@@ -1,0 +1,12 @@
+__pycache__/
+.venv/
+
+.env*
+json
+os
+sys
+
+dist/
+backend/dist/
+backend/src/.env
+backend/node_modules/
