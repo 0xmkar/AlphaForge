@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0e0b09;
+  --foreground: #f5f0eb;
+
+  /* Lava colors */
+  --lava-core: #ff2200;
+  --lava-default: #ff4500;
+  --lava-glow: #ff6b00;
+  --lava-hot: #ffb347;
+  --lava-amber: #ffd580;
+
+  /* Stone palette */
+  --stone-light: #f5f0eb;
+  --stone-mid: #e8e0d6;
+  --stone-dark: #8b7355;
+  --stone-wall: #d4c5b0;
+  --stone-deep: #1a1410;
+
+  /* Pipe */
+  --pipe-color: #2a2019;
+  --pipe-highlight: #4a3828;
+  --pipe-shadow: #0d0a07;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", sans-serif;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4 {
+  font-family: "Outfit", sans-serif;
+}
+
+/* ─── Glow utilities ─────────────────────────────────────────── */
+.glow-lava {
+  filter: drop-shadow(0 0 8px var(--lava-default)) drop-shadow(0 0 24px var(--lava-glow));
+}
+.glow-lava-intense {
+  filter: drop-shadow(0 0 12px var(--lava-core)) drop-shadow(0 0 32px var(--lava-glow)) drop-shadow(0 0 60px var(--lava-hot));
+}
+.glow-text-lava {
+  text-shadow: 0 0 20px var(--lava-glow), 0 0 60px var(--lava-default);
+}
+
+/* ─── Keyframe animations ─────────────────────────────────────── */
+
+/* Moving lava gradient shimmer */
+@keyframes lava-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Pulse ring */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.95); opacity: 0.9; }
+  60%  { transform: scale(1.15); opacity: 0.4; }
+  100% { transform: scale(1.4);  opacity: 0; }
+}
+
+/* Ember / spark float */
+@keyframes spark-float {
+  0%   { transform: translateY(0px)  translateX(0px) scale(1);   opacity: 0.9; }
+  50%  { transform: translateY(-20px) translateX(6px) scale(0.7); opacity: 0.6; }
+  100% { transform: translateY(-40px) translateX(-4px) scale(0.3); opacity: 0; }
+}
+
+/* Breathing glow */
+@keyframes breathe-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px var(--lava-glow)) drop-shadow(0 0 18px var(--lava-default)); }
+  50%       { filter: drop-shadow(0 0 16px var(--lava-glow)) drop-shadow(0 0 40px var(--lava-core)); }
+}
+
+/* Pulsing dot */
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1);   }
+  50%       { opacity: 0.4; transform: scale(0.6); }
+}
+
+/* Intelligence ticker text fade */
+@keyframes text-fade {
+  0%, 100% { opacity: 1; }
+  45%, 55% { opacity: 0; }
+}
+
+/* Heat shimmer wobble */
+@keyframes heat-shimmer {
+  0%, 100% { transform: scaleX(1)   skewX(0deg); }
+  25%       { transform: scaleX(1.01) skewX(0.5deg); }
+  75%       { transform: scaleX(0.99) skewX(-0.5deg); }
+}
+
+/* Gutter drip accelerate */
+@keyframes gutter-drip {
+  0%   { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(120px); opacity: 0; }
+}
+
+/* Station scale pulse on activation */
+@keyframes station-activate {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.04); }
+  70%  { transform: scale(0.98); }
+  100% { transform: scale(1); }
+}
+
+/* Lava fountain drip */
+@keyframes drip {
+  0%   { transform: translateY(0) scaleY(0.8); opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(110px) scaleY(1.4); opacity: 0; }
+}
+
+/* SVG gradient pan */
+@keyframes gradient-pan {
+  0%   { x: -100%; }
+  100% { x: 100%; }
+}
+
+/* Pipe flow dashes animation */
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -80;
+  }
+}
+.animate-flow-dash {
+  animation: flow-dash 1.2s linear infinite;
+}
