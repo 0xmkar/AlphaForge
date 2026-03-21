@@ -17,7 +17,7 @@ export const fetchTopMarkets = async (limit: number = 50): Promise<PolymarketEve
     const response = await axios.get(url);
     return response.data;
   } catch (error) {
-    logger.error('Error fetching Polymarket data:', error);
+    logger.error(`Error fetching Polymarket data: ${error}`);
     throw new Error('Failed to fetch from Polymarket API');
   }
 };

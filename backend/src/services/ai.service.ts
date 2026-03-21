@@ -1,9 +1,12 @@
-import Groq from 'groq-sdk';
+import { ChatGroq } from '@langchain/groq';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import logger from '../utils/logger';
 import { PolymarketEvent } from './polymarket.service';
 
-const groq = new Groq({
+const model = new ChatGroq({
   apiKey: process.env.GROQ_API_KEY,
+  model: 'llama-3.3-70b-versatile',
+  temperature: 0.1,
 });
 
 const SIGNAL_AGENT_SYSTEM_PROMPT = `
@@ -111,6 +114,15 @@ Return ONLY valid JSON. The root object MUST have a "signals" key containing an 
 You are not a chatbot. You are a signal extraction engine.
 `;
 
+/** LLMs often wrap JSON in ```json fences despite instructions; strip before parse. */
+function parseLlmJson(content: string): unknown {
+  let s = content.trim();
+  if (s.startsWith('```')) {
+    s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+  }
+  return JSON.parse(s.trim());
+}
+
 export type SignalOutput = {
   market: string;
   is_relevant: boolean;
@@ -142,29 +154,18 @@ export const analyzeMarketsBatch = async (markets: PolymarketEvent[]): Promise<S
       volume: m.volumeNum,
     }));
 
-    const response = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: SIGNAL_AGENT_SYSTEM_PROMPT,
-        },
-        {
-          role: 'user',
-          content: `Analyze the following markets and return the JSON payload:\n${JSON.stringify(marketInputs, null, 2)}`,
-        },
-      ],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
-    });
+    const response = await model.invoke([
+      new SystemMessage(SIGNAL_AGENT_SYSTEM_PROMPT),
+      new HumanMessage(`Analyze the following markets and return the JSON payload:\n${JSON.stringify(marketInputs, null, 2)}`),
+    ]);
 
-    const content = response.choices[0]?.message?.content;
+    const content = typeof response.content === 'string' ? response.content : null;
     if (!content) return [];
 
-    const parsed = JSON.parse(content);
+    const parsed = parseLlmJson(content) as { signals?: SignalOutput[] };
     return parsed.signals || [];
   } catch (error) {
-    logger.error('Error calling Groq API:', error);
+    logger.error('Error calling LangChain/Groq API:', error);
     return [];
   }
 };
