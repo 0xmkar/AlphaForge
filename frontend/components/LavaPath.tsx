@@ -31,7 +31,7 @@ export default function LavaPath({ pathD, smoothProgress, startFill, endFill }: 
       }}
     >
       <defs>
-        <mask id={`path-mask-${uid}`}>
+        <mask id={`path-mask-${uid}`} maskUnits="userSpaceOnUse" x="-20%" y="-20%" width="140%" height="140%">
           <motion.path 
             d={pathD} 
             stroke="white" 
@@ -42,7 +42,7 @@ export default function LavaPath({ pathD, smoothProgress, startFill, endFill }: 
           />
         </mask>
         
-        <filter id={`glow-intense-${uid}`}>
+        <filter id={`glow-intense-${uid}`} filterUnits="userSpaceOnUse" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="8" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
@@ -50,7 +50,7 @@ export default function LavaPath({ pathD, smoothProgress, startFill, endFill }: 
           </feMerge>
         </filter>
         
-        <linearGradient id={`lava-grad-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={`lava-grad-${uid}`} gradientUnits="userSpaceOnUse" x1="0%" y1="0%" x2="100%" y2="100%">
            <stop offset="0%" stopColor="#FF2200" />
            <stop offset="50%" stopColor="#FF6B00" />
            <stop offset="100%" stopColor="#FF2200" />

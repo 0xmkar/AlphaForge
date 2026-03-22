@@ -10,23 +10,10 @@ interface ForgeStationProps {
   title: string;
   description: string;
   stationIndex: number;
+  intelligenceStates: string[];
 }
 
-// Rotating intelligence phrases
-const INTELLIGENCE_STATES = [
-  "Initializing…",
-  "Scanning signals…",
-  "Analyzing patterns…",
-  "Confidence: 42%",
-  "Evaluating regime…",
-  "Confidence: 67%",
-  "Cross-referencing…",
-  "Confidence: 78%",
-  "Locking alpha…",
-  "Signal confirmed.",
-];
-
-function IntelligenceIndicator({ active }: { active: boolean }) {
+function IntelligenceIndicator({ active, states }: { active: boolean; states: string[] }) {
   const [phraseIndex, setPhraseIndex] = useState(0);
 
   useEffect(() => {
@@ -35,10 +22,10 @@ function IntelligenceIndicator({ active }: { active: boolean }) {
       return;
     }
     const interval = setInterval(() => {
-      setPhraseIndex((i) => (i + 1) % INTELLIGENCE_STATES.length);
+      setPhraseIndex((i) => (i + 1) % states.length);
     }, 1400);
     return () => clearInterval(interval);
-  }, [active]);
+  }, [active, states]);
 
   return (
     <div
@@ -90,7 +77,7 @@ function IntelligenceIndicator({ active }: { active: boolean }) {
             opacity: active ? 1 : 0.4,
           }}
         >
-          {active ? INTELLIGENCE_STATES[phraseIndex] : "Standby"}
+          {active ? states[phraseIndex] : "Standby"}
         </motion.span>
       </AnimatePresence>
     </div>
@@ -104,6 +91,7 @@ export default function ForgeStation({
   title,
   description,
   stationIndex,
+  intelligenceStates,
 }: ForgeStationProps) {
   const uid = useId().replace(/:/g, "");
 
@@ -363,7 +351,7 @@ export default function ForgeStation({
             height: 60,
           }}
         >
-          <IntelligenceIndicator active={isActive} />
+          <IntelligenceIndicator active={isActive} states={intelligenceStates} />
         </div>
       </motion.div>
 

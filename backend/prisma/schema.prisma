@@ -13,12 +13,42 @@ datasource db {
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  email      String   @unique
-  password   String
-  wallet     String   @default("")
-  seedPhrase String   @default("")
-  name       String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          Int          @id @default(autoincrement())
+  email       String       @unique
+  password    String
+  wallet      String       @default("")
+  seedPhrase  String       @default("")
+  name        String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  investments Investment[]
+}
+
+model Investment {
+  id                  Int      @id @default(autoincrement())
+  userId              Int
+  user                User     @relation(fields: [userId], references: [id])
+
+  // Strategy context
+  dominantRegime      String
+  overallConfidence   Float
+  timeHorizon         String
+  signalSummary       String
+  actions             Json     // WDKAction[]
+
+  // Execution summary
+  totalSteps          Int
+  succeeded           Int
+  failed              Int
+  skipped             Int
+  steps               Json     // ExecutionStep[]
+  totalGasSpentWei    String
+  executionDurationMs Int
+
+  // Risk assessment
+  riskAssessment      Json?
+
+  // Timestamps
+  strategyCreatedAt   DateTime
+  createdAt           DateTime @default(now())
 }

@@ -9,20 +9,58 @@ import SparkParticles from "@/components/SparkParticles";
 
 const STATIONS = [
   {
-    title: "Signal Ingestion",
-    description: "Raw market data streams are captured and normalized in real time.",
+    title: "Signal Agent",
+    description: "Polymarket feeds are parsed and classified into a macro regime signal.",
+    intelligenceStates: [
+      "Connecting to Polymarket…",
+      "Fetching market data…",
+      "Parsing event contracts…",
+      "Confidence: 38%",
+      "Classifying macro regime…",
+      "Confidence: 61%",
+      "Signal strength: HIGH",
+      "Regime: Risk-On",
+      "Signal confirmed.",
+    ],
   },
   {
-    title: "Regime Detection",
-    description: "Market regimes and macro conditions are classified across timeframes.",
+    title: "Strategy Agent",
+    description: "Regime signal is translated into a concrete portfolio allocation decision.",
+    intelligenceStates: [
+      "Reading regime signal…",
+      "Modeling allocations…",
+      "Confidence: 44%",
+      "Optimizing portfolio…",
+      "Confidence: 69%",
+      "Backtesting strategy…",
+      "Allocation: Long BTC",
+      "Decision locked.",
+    ],
   },
   {
-    title: "Alpha Synthesis",
-    description: "Multi-factor models converge on high-confidence opportunity sets.",
+    title: "Risk Agent",
+    description: "Guardrails, exposure limits, and safety checks are enforced before execution.",
+    intelligenceStates: [
+      "Loading risk limits…",
+      "Checking exposure…",
+      "Drawdown: 2.1%",
+      "Evaluating guardrails…",
+      "Limit check: PASS",
+      "Safety check: PASS",
+      "Risk approved.",
+    ],
   },
   {
-    title: "Execution Forging",
-    description: "Strategies are forged into precise, risk-adjusted execution signals.",
+    title: "Execution Agent",
+    description: "WDK signs and submits the approved trade as an on-chain transaction.",
+    intelligenceStates: [
+      "Connecting to WDK…",
+      "Building transaction…",
+      "Signing payload…",
+      "Broadcasting on-chain…",
+      "Awaiting confirmation…",
+      "Tx confirmed.",
+    ],
   },
 ];
 
@@ -39,7 +77,7 @@ const PIPE_WINDOWS = [
   { start: 0.2, end: 0.27 },   // pipe 1→2
   { start: 0.4, end: 0.47 },   // pipe 2→3
   { start: 0.6, end: 0.67 },   // pipe 3→4
-  { start: 0.82, end: 0.94 },  // pipe 4 → gutter
+  { start: 0.8, end: 0.94 },   // pipe 4 → gutter
 ];
 
 const STATION_POSITIONS = [
@@ -52,7 +90,8 @@ const STATION_POSITIONS = [
 function drawPipe(startX: number, startY: number, endX: number, endY: number, radius = 40) {
   const isRight = endX > startX;
   if (startX === endX) {
-    return `M ${startX} ${startY} L ${endX} ${endY}`;
+    // Add tiny offset to prevent SVG 0-width bounding box bugs with linear gradients & filters
+    return `M ${startX} ${startY} L ${endX + 0.01} ${endY}`;
   }
   const midY = startY + (endY - startY) / 2;
   const r = radius;
@@ -74,9 +113,9 @@ export default function LavaFlowSystem() {
   });
 
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 80,
-    damping: 28,
-    restDelta: 0.001,
+    stiffness: 280,
+    damping: 40,
+    restDelta: 0.0005,
   });
 
   const LAYOUT_W = 800;
@@ -176,6 +215,7 @@ export default function LavaFlowSystem() {
                 title={station.title}
                 description={station.description}
                 stationIndex={i}
+                intelligenceStates={station.intelligenceStates}
               />
             </div>
           );

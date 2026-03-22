@@ -5,6 +5,7 @@ import signalRoute from './signal.route';
 import strategyRoute from './strategy.route';
 import authRoute from './auth.route';
 import executionRoute from './execution.route';
+import investmentRoute from './investment.route';
 
 const router = express.Router();
 
@@ -28,6 +29,10 @@ const defaultRoutes = [
   {
     path: '/execution',
     route: executionRoute,
+  },
+  {
+    path: '/investments',
+    route: investmentRoute,
   },
 ];
 

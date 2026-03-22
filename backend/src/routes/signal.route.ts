@@ -1,6 +1,7 @@
 import express from 'express';
 import * as signalController from '../controllers/signal.controller';
 import { authenticate } from '../middlewares/auth.middleware';
+import { runRiskAgent } from '../risk-agent';
 
 const router = express.Router();
 
@@ -63,5 +64,23 @@ const router = express.Router();
  *                         type: number
  */
 router.get('/', authenticate, signalController.getSignals);
+
+/**
+ * @swagger
+ * /signals/risk-check:
+ *   post:
+ *     summary: Run risk agent on a strategy decision
+ *     tags: [Signals]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/risk-check', authenticate, (req, res) => {
+  const strategy = req.body;
+  if (!strategy || !strategy.actions || typeof strategy.overall_confidence !== 'number') {
+    return res.status(400).json({ message: 'Invalid strategy body' });
+  }
+  const assessment = runRiskAgent(strategy);
+  res.status(200).json({ assessment });
+});
 
 export default router;

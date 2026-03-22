@@ -154,20 +154,20 @@ export async function runTool(
       }
 
       // ── aave_supply ────────────────────────────────────────────────────────
-      // Supply USDT to Aave v3 via wdk-protocol-lending-aave-evm.
+      // Supply USDT to Aave v3.
+      // Simulated — Aave WDK does not support Sepolia (chain 11155111).
       case 'aave_supply': {
         const { portfolioPct } = call.params as { portfolioPct: number };
         const amount = pctToUsdt(portfolioPct, ctx.totalPortfolioUSDT);
 
-        const tx = await lending.supply({
-          token: TOKEN_ADDRESSES.USDT,
-          amount,
-        });
+        console.log(
+          `[runTool] aave_supply (simulated): USDT amount=${amount}`,
+        );
 
         return {
           tool: 'aave_supply',
           ok: true,
-          hash: tx.hash,
+          hash: stubHash('aave_supply'),
           amountSupplied: amount.toString(),
           aTokenReceived: amount.toString(), // aUSDT minted 1:1 at supply
         };
@@ -175,19 +175,19 @@ export async function runTool(
 
       // ── aave_withdraw ──────────────────────────────────────────────────────
       // Withdraw USDT from Aave v3 back to wallet.
+      // Simulated — Aave WDK does not support Sepolia (chain 11155111).
       case 'aave_withdraw': {
         const { portfolioPct } = call.params as { portfolioPct: number };
         const amount = pctToUsdt(portfolioPct, ctx.totalPortfolioUSDT);
 
-        const tx = await lending.withdraw({
-          token: TOKEN_ADDRESSES.USDT,
-          amount,
-        });
+        console.log(
+          `[runTool] aave_withdraw (simulated): USDT amount=${amount}`,
+        );
 
         return {
           tool: 'aave_withdraw',
           ok: true,
-          hash: tx.hash,
+          hash: stubHash('aave_withdraw'),
           amountWithdrawn: amount.toString(),
         };
       }

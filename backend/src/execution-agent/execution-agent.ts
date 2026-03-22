@@ -64,9 +64,21 @@ function parseToolCall(raw: string): ToolCall {
 
   try {
     const parsed = JSON.parse(clean);
-    if (!parsed.tool || !parsed.params || !parsed.reason) {
-      throw new Error(`Invalid tool call shape: ${clean}`);
+
+    // If reason is missing at top level but in params, lift it up
+    if (!parsed.reason && parsed.params?.reason) {
+      parsed.reason = parsed.params.reason;
     }
+
+    if (!parsed.tool || !parsed.params) {
+      throw new Error(`Invalid tool call shape (missing tool or params): ${clean}`);
+    }
+
+    // Default reason if still missing
+    if (!parsed.reason) {
+      parsed.reason = 'No reason provided';
+    }
+
     return parsed as ToolCall;
   } catch (err) {
     throw new Error(`Failed to parse JSON segment: ${clean}. Error: ${err}`);

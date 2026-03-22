@@ -28,6 +28,20 @@ interface ProfileData {
   balances: Balances;
 }
 
+/* ─── Investment types ──────────────────────────────────────────────── */
+interface Investment {
+  id: number;
+  dominantRegime: string;
+  overallConfidence: number;
+  timeHorizon: string;
+  signalSummary: string;
+  succeeded: number;
+  failed: number;
+  totalSteps: number;
+  totalGasSpentWei: string;
+  createdAt: string;
+}
+
 /* ─── Signal types ─────────────────────────────────────────────────── */
 interface SignalOutput {
   market: string;
@@ -163,6 +177,10 @@ export default function ProfilePage() {
   const [copied, setCopied] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
 
+  // Investments state
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [investmentsLoading, setInvestmentsLoading] = useState(true);
+
   // Signal state
   const [signalData, setSignalData] = useState<SignalResponse | null>(null);
   const [signalLoading, setSignalLoading] = useState(false);
@@ -188,9 +206,24 @@ export default function ProfilePage() {
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || "Failed to load profile");
         setData(json);
+
+        // Fetch investments
+        try {
+          const invRes = await fetch(`${API_BASE}/v1/investments`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (invRes.ok) {
+            const invJson = await invRes.json();
+            setInvestments(invJson.investments || []);
+          }
+        } catch (e) {
+          console.error("Failed to load investments", e);
+        }
+        setInvestmentsLoading(false);
+
+        setLoading(false);
       } catch (err: any) {
         setError(err.message ?? "Unknown error");
-      } finally {
         setLoading(false);
       }
     })();
@@ -216,7 +249,7 @@ export default function ProfilePage() {
     setSignalError(null);
     setSignalData(null);
     try {
-      const res = await fetch(`${API_BASE}/v1/signals/30`, {
+      const res = await fetch(`${API_BASE}/v1/signals?limit=30`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
@@ -322,7 +355,8 @@ export default function ProfilePage() {
     );
   }
 
-  const { user, balances } = data!;
+  if (!data) return null;
+  const { user, balances } = data;
 
   return (
     <main
@@ -780,6 +814,96 @@ export default function ProfilePage() {
                 ))}
               </div>
             </motion.div>
+
+            {/* ── Investments History ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.3 }}
+              style={{ marginBottom: "1.5rem" }}
+            >
+              <p
+                style={{
+                  fontFamily: "Outfit, sans-serif",
+                  fontSize: "0.68rem",
+                  letterSpacing: "0.3em",
+                  textTransform: "uppercase",
+                  color: "var(--stone-dark)",
+                  marginBottom: "1rem",
+                }}
+              >
+                Strategy Execution History
+              </p>
+
+              {investmentsLoading ? (
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: "0.85rem", color: "var(--stone-dark)" }}>Loading history...</p>
+              ) : investments.length === 0 ? (
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: "0.85rem", color: "var(--stone-dark)" }}>No strategies executed yet.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {investments.map((inv, i) => (
+                    <motion.div
+                      key={inv.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: i * 0.05 }}
+                      style={{
+                        background: "rgba(26,20,16,0.8)",
+                        border: "1px solid rgba(255,255,255,0.07)",
+                        borderRadius: "1rem",
+                        padding: "1.2rem",
+                        position: "relative",
+                        overflow: "hidden",
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                        <div>
+                          <p style={{ fontFamily: "Outfit, sans-serif", fontSize: "0.95rem", fontWeight: 700, color: "var(--stone-light)" }}>
+                            {REGIME_LABELS[inv.dominantRegime] ?? inv.dominantRegime}
+                          </p>
+                          <p style={{ fontFamily: "Inter, sans-serif", fontSize: "0.75rem", color: "var(--stone-dark)", marginTop: "0.2rem" }}>
+                            {new Date(inv.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <span
+                            style={{
+                              fontFamily: "Outfit, sans-serif",
+                              fontSize: "0.65rem",
+                              fontWeight: 600,
+                              letterSpacing: "0.05em",
+                              padding: "0.2rem 0.6rem",
+                              borderRadius: "999px",
+                              background: inv.failed === 0 ? "rgba(79,209,165,0.12)" : "rgba(255,107,107,0.12)",
+                              color: inv.failed === 0 ? "#4fd1a5" : "#ff6b6b",
+                            }}
+                          >
+                            {inv.succeeded} / {inv.totalSteps} Steps Success
+                          </span>
+                        </div>
+                      </div>
+                      <p style={{ fontFamily: "Inter, sans-serif", fontSize: "0.82rem", color: "var(--stone-mid)", lineHeight: 1.5, marginBottom: "0.75rem" }}>
+                        {inv.signalSummary}
+                      </p>
+
+                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: "Outfit, sans-serif", fontSize: "0.65rem", padding: "0.2rem 0.5rem", borderRadius: "4px", background: "rgba(255,255,255,0.05)", color: "var(--stone-dark)" }}>
+                          {inv.timeHorizon} term
+                        </span>
+                        <span style={{ fontFamily: "Outfit, sans-serif", fontSize: "0.65rem", padding: "0.2rem 0.5rem", borderRadius: "4px", background: "rgba(255,255,255,0.05)", color: "var(--stone-dark)" }}>
+                          Conf: {Math.round(inv.overallConfidence * 100)}%
+                        </span>
+                        <span style={{ fontFamily: "Outfit, sans-serif", fontSize: "0.65rem", padding: "0.2rem 0.5rem", borderRadius: "4px", background: "rgba(255,255,255,0.05)", color: "var(--stone-dark)" }}>
+                          Gas: {formatBalance(inv.totalGasSpentWei, 18)} ETH
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+
           </div>{/* END LEFT COLUMN */}
 
           {/* ── RIGHT COLUMN — Forge Intelligence panel ── */}

@@ -4,8 +4,9 @@ import { getWallet } from '../utils/wallet';
 import { groqExecutionCallLLM } from '../services/ai.service';
 import type { StrategyDecision, WDKAction } from '../strategy-agent/types';
 import logger from '../utils/logger';
-
 import prisma from '../utils/prisma';
+import { createInvestment } from '../services/investment.service';
+import { runRiskAgent } from '../risk-agent';
 
 export const testExecution = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -104,15 +105,41 @@ export const testExecution = async (req: Request, res: Response, next: NextFunct
       created_at: Date.now(),
     };
 
+    // ── Risk Agent ─────────────────────────────────────────────────────────
+    const riskAssessment = runRiskAgent(mockStrategy);
+    logger.info(`[RiskAgent] score=${riskAssessment.riskScore} level=${riskAssessment.riskLevel} approved=${riskAssessment.approved}`);
+
+    if (!riskAssessment.approved) {
+      return res.status(422).json({
+        status: 'blocked',
+        reason: 'Risk agent rejected the strategy',
+        riskAssessment,
+      });
+    }
+
     logger.info(`Running execution agent for scenario: ${scenario}`);
 
     const execution = await runExecutionAgent(mockStrategy, ctx, groqExecutionCallLLM);
 
+    // Persist to the investments table if at least one step succeeded
+    let investmentId: number | null = null;
+    if (thirdUser && execution.summary.succeeded > 0) {
+      try {
+        const saved = await createInvestment(thirdUser.id, mockStrategy, execution, riskAssessment);
+        investmentId = saved.id;
+        logger.info(`Investment saved with id=${investmentId}`);
+      } catch (err) {
+        logger.error('Failed to save investment:', err);
+      }
+    }
+
     res.status(200).json({
       status: 'success',
       scenario,
+      riskAssessment,
       strategy: mockStrategy,
       execution,
+      investmentId,
     });
   } catch (error) {
     next(error);
