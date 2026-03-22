@@ -4,6 +4,8 @@ import jwt from 'jsonwebtoken';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 import { getWallet } from '../utils/wallet';
+import { TOKEN_ADDRESSES } from '../execution-agent/types';
+import { AuthRequest } from '../middlewares/auth.middleware';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_here';
 
@@ -101,6 +103,42 @@ export const login = async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error(`Login error: ${error}`);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const getProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    const walletInfo = await getWallet(user.seedPhrase);
+    const account = walletInfo.account as any;
+
+    const ethBalance = await account.getBalance();
+    const usdtBalance = await account.getTokenBalance(TOKEN_ADDRESSES.USDT);
+    const btcBalance = await account.getTokenBalance(TOKEN_ADDRESSES.BTC);
+    const xautBalance = await account.getTokenBalance(TOKEN_ADDRESSES.XAUT);
+
+    res.status(200).json({
+      user: {
+        id: user.id,
+        email: user.email,
+        wallet: user.wallet,
+        name: user.name,
+      },
+      balances: {
+        ETH: ethBalance.toString(),
+        USDT: usdtBalance.toString(),
+        BTC: btcBalance.toString(),
+        XAUT: xautBalance.toString(),
+      }
+    });
+
+  } catch (error) {
+    logger.error(`Get profile error: ${error}`);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

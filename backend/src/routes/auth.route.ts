@@ -1,5 +1,5 @@
 import express from 'express';
-import { signup, login } from '../controllers/auth.controller';
+import { signup, login, getProfile } from '../controllers/auth.controller';
 import { authenticate } from '../middlewares/auth.middleware';
 
 const router = express.Router();
@@ -104,5 +104,40 @@ router.post('/signup', signup);
  *         description: Internal server error
  */
 router.post('/login', login);
+
+/**
+ * @swagger
+ * /auth/profile:
+ *   get:
+ *     summary: Get user profile and balances
+ *     description: Returns the logged-in user's details and real on-chain token balances.
+ *     tags:
+ *       - Auth
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: Profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   example:
+ *                     id: "123"
+ *                     email: "user@example.com"
+ *                 balances:
+ *                   type: object
+ *                   example:
+ *                     USDT: "100.5"
+ *                     ETH: "0.2"
+ *       "401":
+ *         description: Unauthorized - Missing or invalid token
+ *       "500":
+ *         description: Internal server error
+ */
+router.get('/profile', authenticate, getProfile);
 
 export default router;

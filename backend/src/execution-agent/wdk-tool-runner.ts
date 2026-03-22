@@ -192,23 +192,21 @@ export async function runTool(
         };
       }
 
-      // ── get_wallet_balances ────────────────────────────────────────────────
-      // Agent calls this at start (confirm starting state) and at end (verify
-      // the portfolio moved to target allocation).
-      //
-      // Returns ctx.totalPortfolioUSDT as the USDT balance to reflect the
-      // assumed 100%-USDT starting position. Replace with real wdk-wallet-evm
-      // getBalance calls when the wallet API is wired up.
       case 'get_wallet_balances': {
-        // Attempt real balance fetch; fall back to ctx-derived stub
-        const rawBalances = await (ctx.evmAccount as any).getBalances?.();
+        const evmAccount = ctx.evmAccount as any;
+        const [ethBalance, usdtBalance, btcBalance, xautBalance] = await Promise.all([
+          evmAccount.getBalance(),
+          evmAccount.getTokenBalance(TOKEN_ADDRESSES.USDT),
+          evmAccount.getTokenBalance(TOKEN_ADDRESSES.BTC),
+          evmAccount.getTokenBalance(TOKEN_ADDRESSES.XAUT)
+        ]);
 
-        const balances: Record<WDKAsset | 'USDT_lent', string> = rawBalances ?? {
-          USDT: ctx.totalPortfolioUSDT.toString(),
+        const balances: Record<WDKAsset | 'USDT_lent', string> = {
+          USDT: usdtBalance.toString(),
           USDT_lent: '0',
-          ETH: '0',
-          BTC: '0',
-          XAUT: '0',
+          ETH: ethBalance.toString(),
+          BTC: btcBalance.toString(),
+          XAUT: xautBalance.toString(),
         };
 
         return {

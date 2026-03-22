@@ -1,13 +1,19 @@
 "use client";
 
-import { useRef } from "react";
-import { motion, useScroll, useSpring, useTransform } from "framer-motion";
+import { useRef, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import LavaFountain from "@/components/LavaFountain";
 import LavaFlowSystem from "@/components/LavaFlowSystem";
-import LavaGutter from "@/components/LavaGutter";
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setLoggedIn(!!localStorage.getItem("alphaforge_token"));
+  }, []);
 
   return (
     <main
@@ -17,6 +23,37 @@ export default function Home() {
         overflowX: "hidden",
       }}
     >
+      {/* ─── Nav Button (Login / Profile) ──────────────────── */}
+      {loggedIn !== null && (
+        <motion.button
+          onClick={() => router.push(loggedIn ? "/profile" : "/login")}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+          whileHover={{ scale: 1.06, boxShadow: "0 0 28px rgba(255,69,0,0.6), 0 0 60px rgba(255,107,0,0.25)" }}
+          whileTap={{ scale: 0.96 }}
+          style={{
+            position: "fixed",
+            top: "1.5rem",
+            right: "2rem",
+            zIndex: 100,
+            padding: "0.55rem 1.6rem",
+            borderRadius: "0.45rem",
+            border: "1px solid rgba(255,100,0,0.35)",
+            cursor: "pointer",
+            fontFamily: "Outfit, sans-serif",
+            fontWeight: 600,
+            fontSize: "0.9rem",
+            letterSpacing: "0.06em",
+            background: "linear-gradient(135deg, var(--lava-core), var(--lava-glow))",
+            color: "#fff",
+            boxShadow: "0 0 16px rgba(255,69,0,0.35), 0 0 40px rgba(255,107,0,0.12)",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          {loggedIn ? "Profile" : "Login"}
+        </motion.button>
+      )}
       {/* ─── Hero Section ───────────────────────────────────────────── */}
       <section
         style={{
@@ -205,6 +242,7 @@ export default function Home() {
             signal.
           </p>
           <motion.button
+            onClick={() => router.push("/login")}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.97 }}
             style={{
@@ -223,7 +261,7 @@ export default function Home() {
                 "0 0 24px rgba(255,69,0,0.5), 0 0 60px rgba(255,107,0,0.2)",
             }}
           >
-            Request Access
+            Access
           </motion.button>
         </motion.div>
       </section>
