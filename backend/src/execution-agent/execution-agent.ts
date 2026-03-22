@@ -51,19 +51,26 @@ export type Message = { role: 'system' | 'user' | 'assistant'; content: string }
 // ─── Response parser ──────────────────────────────────────────────────────────
 
 function parseToolCall(raw: string): ToolCall {
-  const clean = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .trim();
+  // LLMs (especially smaller ones) often add conversational preamble/postamble.
+  // We look for the first '{' and last '}' to extract the JSON payload.
+  const firstBrace = raw.indexOf('{');
+  const lastBrace = raw.lastIndexOf('}');
 
-  const parsed = JSON.parse(clean);
-
-  if (!parsed.tool || !parsed.params || !parsed.reason) {
-    throw new Error(`Invalid tool call shape: ${clean}`);
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+    throw new Error(`No JSON object found in LLM response: ${raw}`);
   }
 
-  return parsed as ToolCall;
+  const clean = raw.slice(firstBrace, lastBrace + 1);
+
+  try {
+    const parsed = JSON.parse(clean);
+    if (!parsed.tool || !parsed.params || !parsed.reason) {
+      throw new Error(`Invalid tool call shape: ${clean}`);
+    }
+    return parsed as ToolCall;
+  } catch (err) {
+    throw new Error(`Failed to parse JSON segment: ${clean}. Error: ${err}`);
+  }
 }
 
 // ─── Conversation builder helpers ─────────────────────────────────────────────
@@ -192,6 +199,9 @@ export async function runExecutionAgent(
     // 10. Observability
     const icon = result.ok ? '✓' : '✗';
     console.log(`[ExecutionAgent] ${icon} ${toolCall.tool} — ${toolCall.reason}`);
+    if (result.ok && (result as any).hash) {
+      console.log(`[ExecutionAgent] Transaction Hash: ${(result as any).hash}`);
+    }
     if (!result.ok) {
       console.error(`[ExecutionAgent] Error: ${(result as any)['error']}`);
     }

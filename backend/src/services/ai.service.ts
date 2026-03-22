@@ -7,10 +7,18 @@ import type { SignalOutput } from '../strategy-agent/types';
 
 export type { SignalOutput } from '../strategy-agent/types';
 
+// Signal / Strategy agent — large model for nuanced reasoning
 const model = new ChatGroq({
   apiKey: process.env.GROQ_API_KEY,
   model: 'llama-3.3-70b-versatile',
   temperature: 0.1,
+});
+
+// Execution agent — small fast model, only emits short tool-call JSON
+const executionModel = new ChatGroq({
+  apiKey: process.env.GROQ_API_KEY,
+  model: 'llama-3.1-8b-instant',
+  temperature: 0,
 });
 
 const SIGNAL_AGENT_SYSTEM_PROMPT = `
@@ -169,8 +177,8 @@ export const groqExecutionCallLLM = async (messages: Message[]): Promise<string>
     if (m.role === 'assistant') return new AIMessage(m.content);
     return new HumanMessage(m.content); // 'user'
   });
-  
-  const response = await model.invoke(lcMessages);
+
+  const response = await executionModel.invoke(lcMessages);
   return typeof response.content === 'string' ? response.content : '';
 };
 

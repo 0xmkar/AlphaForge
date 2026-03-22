@@ -1,14 +1,14 @@
 export const NETWORKS = {
   sepolia: {
-    rpc: 'https://rpc.sepolia.org',
+    rpc: 'https://eth-sepolia.g.alchemy.com/v2/EP47MegByxxt9J7o42agt',
     chainId: 11155111,
   },
   fuji: {
-    rpc: 'https://api.avax-test.network/ext/bc/C/rpc',
+    rpc: 'https://avax-fuji.g.alchemy.com/v2/EP47MegByxxt9J7o42agt',
     chainId: 43113,
   },
   polygonAmoy: {
-    rpc: 'https://rpc-amoy.polygon.technology',
+    rpc: 'https://polygon-amoy.g.alchemy.com/v2/EP47MegByxxt9J7o42agt',
     chainId: 80002,
   },
 };

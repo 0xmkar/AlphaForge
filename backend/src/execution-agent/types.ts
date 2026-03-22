@@ -5,14 +5,20 @@
 
 import { StrategyDecision, WDKAction, WDKAsset } from '../strategy-agent/types';
 
-// ─── Token addresses (Ethereum mainnet) ──────────────────────────────────────
-// These go directly into VeloraProtocolEvm.swap({ tokenIn, tokenOut })
+// mainnet addresses
+// export const TOKEN_ADDRESSES: Record<WDKAsset, string> = {
+//   USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+//   ETH:  '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', // native ETH
+//   BTC:  '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', // WBTC on mainnet
+//   XAUT: '0x68749665FF8D2d112Fa859AA293F07A622782F38',
+// };
 
+// testnet
 export const TOKEN_ADDRESSES: Record<WDKAsset, string> = {
-  USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-  ETH:  '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', // native ETH sentinel
-  BTC:  '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', // WBTC on mainnet
-  XAUT: '0x68749665FF8D2d112Fa859AA293F07A622782F38',
+  USDT: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+  ETH: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // native ETH
+  BTC: '0x29f2d40b0605204364af54ec677bd022da425d03', // test WBTC
+  XAUT: '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238', // mocked to be usdt for now
 };
 
 // ─── Tool definitions ─────────────────────────────────────────────────────────
@@ -34,13 +40,13 @@ export type ToolCall = {
 };
 
 export type ToolResult =
-  | { tool: 'velora_quote_swap';   ok: true;  fee: string; tokenInAmount: string; tokenOutAmount: string; priceImpactPct: number }
-  | { tool: 'velora_execute_swap'; ok: true;  hash: string; fee: string; tokenInAmount: string; tokenOutAmount: string; approveHash?: string }
-  | { tool: 'aave_supply';         ok: true;  hash: string; amountSupplied: string; aTokenReceived: string }
-  | { tool: 'aave_withdraw';       ok: true;  hash: string; amountWithdrawn: string }
-  | { tool: 'get_wallet_balances'; ok: true;  balances: Record<WDKAsset | 'USDT_lent', string> }
-  | { tool: 'execution_complete';  ok: true;  summary: ExecutionSummary }
-  | { tool: ToolName;              ok: false; error: string; retryable: boolean };
+  | { tool: 'velora_quote_swap'; ok: true; fee: string; tokenInAmount: string; tokenOutAmount: string; priceImpactPct: number }
+  | { tool: 'velora_execute_swap'; ok: true; hash: string; fee: string; tokenInAmount: string; tokenOutAmount: string; approveHash?: string }
+  | { tool: 'aave_supply'; ok: true; hash: string; amountSupplied: string; aTokenReceived: string }
+  | { tool: 'aave_withdraw'; ok: true; hash: string; amountWithdrawn: string }
+  | { tool: 'get_wallet_balances'; ok: true; balances: Record<WDKAsset | 'USDT_lent', string> }
+  | { tool: 'execution_complete'; ok: true; summary: ExecutionSummary }
+  | { tool: ToolName; ok: false; error: string; retryable: boolean };
 
 // ─── Execution loop types ─────────────────────────────────────────────────────
 
@@ -68,11 +74,11 @@ export type ExecutionSummary = {
 // ─── Full execution agent output ──────────────────────────────────────────────
 
 export type ExecutionResult = {
-  strategy_id:        string;   // created_at timestamp of the StrategyDecision
-  dominant_regime:    string;
+  strategy_id: string;   // created_at timestamp of the StrategyDecision
+  dominant_regime: string;
   overall_confidence: number;
-  summary:            ExecutionSummary;
-  created_at:         number;
+  summary: ExecutionSummary;
+  created_at: number;
 };
 
 // Re-export StrategyDecision so callers can import from one place

@@ -137,10 +137,13 @@ RULE 6 — Portfolio pct is always relative to TOTAL portfolio value, not curren
 RULE 7 — execution_complete is mandatory: Always end with execution_complete, even if all steps failed.
 
 ═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT
+OUTPUT FORMAT — CRITICAL
 ═══════════════════════════════════════════════════════════════
 
-Respond with ONLY a JSON object for each tool call. No markdown, no explanation outside JSON.
+Respond with ONLY a JSON object for each tool call. 
+NO MARKDOWN. NO CODE FENCES. NO CONVERSATIONAL TEXT. NO PREAMBLE. NO POSTAMBLE.
+JUST THE RAW JSON OBJECT.
+
 One tool call per response. Wait for the tool result before deciding the next call.
 
 {
@@ -152,11 +155,18 @@ One tool call per response. Wait for the tool result before deciding the next ca
 // ─── First user message (per-execution, carries the StrategyDecision) ─────────
 
 export function buildExecutionUserMessage(decision: StrategyDecision): string {
-  return `Execute the following StrategyDecision. Follow the execution protocol exactly.
+  // Send only what the execution agent actually needs - not the full verbose StrategyDecision.
+  // This cuts 60-70% of first-turn tokens.
+  const slim = {
+    dominant_regime: decision.dominant_regime,
+    overall_confidence: decision.overall_confidence,
+    time_horizon: decision.time_horizon,
+    actions: decision.actions,
+  };
 
-\`\`\`json
-${JSON.stringify(decision, null, 2)}
-\`\`\`
+  return `Execute the following strategy. Follow the execution protocol exactly.
+
+${JSON.stringify(slim)}
 
 Begin with get_wallet_balances to confirm starting state, then process each action in the actions[] array in order.`;
 }
@@ -167,9 +177,7 @@ export function buildToolResultMessage(
   toolCall: Record<string, unknown>,
   toolResult: Record<string, unknown>,
 ): string {
-  return `Tool call: ${JSON.stringify(toolCall, null, 2)}
-
-Result: ${JSON.stringify(toolResult, null, 2)}
-
-Continue. What is your next tool call?`;
+  // Compact JSON (no indentation) to minimise tokens per turn
+  return `Result: ${JSON.stringify(toolResult)}
+Next tool call?`;
 }

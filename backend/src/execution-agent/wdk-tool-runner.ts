@@ -9,11 +9,6 @@
 //
 // ─── Stub behaviour for demo / testnet ───────────────────────────────────────
 //
-// aave_supply / aave_withdraw: if @tetherto/wdk-protocol-lending-aave-evm is not
-//   yet connected to a live endpoint these methods return a *success shape* with
-//   a synthetic hash so the agent loop continues cleanly. The LLM gets real-looking
-//   results and can build its execution summary without burning demo steps on errors.
-//
 // get_wallet_balances: returns ctx.totalPortfolioUSDT as the USDT balance and
 //   zero for all other assets, representing the assumed starting state (100% USDT).
 //   Replace with real wdk-wallet-evm getBalance calls when available.
@@ -21,7 +16,7 @@
 // @ts-ignore — WDK packages use export default, not named exports
 import VeloraProtocolEvm from '@tetherto/wdk-protocol-swap-velora-evm';
 // @ts-ignore
-import AaveProtocolEvm   from '@tetherto/wdk-protocol-lending-aave-evm';
+import AaveProtocolEvm from '@tetherto/wdk-protocol-lending-aave-evm';
 import { TOKEN_ADDRESSES, ToolCall, ToolResult } from './types';
 import type { WDKAsset } from '../strategy-agent/types';
 
@@ -68,7 +63,7 @@ export async function runTool(
   call: ToolCall,
   ctx: WDKContext,
 ): Promise<ToolResult> {
-  const swap    = new VeloraProtocolEvm(ctx.evmAccount, { swapMaxFee: ctx.swapMaxFee });
+  const swap = new VeloraProtocolEvm(ctx.evmAccount, { swapMaxFee: ctx.swapMaxFee });
   const lending = new AaveProtocolEvm(ctx.evmAccount);
 
   try {
@@ -86,20 +81,33 @@ export async function runTool(
 
         const tokenInAmount = pctToUsdt(portfolioPct, ctx.totalPortfolioUSDT);
 
-        const quote = await swap.quoteSwap({
-          tokenIn:       assetAddress(from),
-          tokenOut:      assetAddress(to),
-          tokenInAmount,
-        });
+        // ── Translation log — shows exactly what the agent's symbols resolve to ──
+        console.log(
+          `[runTool] velora_quote_swap: ${from} → ${to} | portfolioPct=${portfolioPct}%` +
+          ` | tokenIn=${assetAddress(from)} tokenOut=${assetAddress(to)} tokenInAmount=${tokenInAmount}`,
+        );
+
+        // Simulated quote since Velora lacks testnet support
+        const simulatedFee = 500000n; // arbitrary small fee
+        // Simulating 1:1 swap roughly for demo purposes
+        const simulatedTokenOutAmount = tokenInAmount;
+        
+        const quote = {
+          fee: simulatedFee,
+          tokenInAmount: tokenInAmount,
+          tokenOutAmount: simulatedTokenOutAmount,
+        };
+
+        console.log("quote (simulated)", quote);
 
         // Price impact: placeholder (oracle-based calc would replace this)
-        const priceImpactPct = 0;
+        const priceImpactPct = 0.1;
 
         return {
-          tool:           'velora_quote_swap',
-          ok:             true,
-          fee:            quote.fee.toString(),
-          tokenInAmount:  quote.tokenInAmount.toString(),
+          tool: 'velora_quote_swap',
+          ok: true,
+          fee: quote.fee.toString(),
+          tokenInAmount: quote.tokenInAmount.toString(),
           tokenOutAmount: quote.tokenOutAmount.toString(),
           priceImpactPct,
         };
@@ -116,61 +124,53 @@ export async function runTool(
 
         const tokenInAmount = pctToUsdt(portfolioPct, ctx.totalPortfolioUSDT);
 
-        const config = ctx.paymasterToken
-          ? { paymasterToken: ctx.paymasterToken, swapMaxFee: ctx.swapMaxFee }
-          : undefined;
-
-        const tx = await swap.swap(
-          {
-            tokenIn:  assetAddress(from),
-            tokenOut: assetAddress(to),
-            tokenInAmount,
-          },
-          config,
+        // ── Translation log — shows exactly what the agent's symbols resolve to ──
+        console.log(
+          `[runTool] velora_execute_swap: ${from} → ${to} | portfolioPct=${portfolioPct}%` +
+          ` | tokenIn=${assetAddress(from)} tokenOut=${assetAddress(to)} tokenInAmount=${tokenInAmount}`,
         );
 
+        // Simulated execute since Velora lacks testnet support
+        const simulatedFee = 500000n; // arbitrary small fee
+        const simulatedTokenOutAmount = tokenInAmount;
+
+        const tx = {
+          hash: stubHash('velora_swap'),
+          fee: simulatedFee,
+          tokenInAmount: tokenInAmount,
+          tokenOutAmount: simulatedTokenOutAmount,
+          approveHash: stubHash('velora_approve'),
+        };
+
         return {
-          tool:           'velora_execute_swap',
-          ok:             true,
-          hash:           tx.hash,
-          fee:            tx.fee.toString(),
-          tokenInAmount:  tx.tokenInAmount.toString(),
+          tool: 'velora_execute_swap',
+          ok: true,
+          hash: tx.hash,
+          fee: tx.fee.toString(),
+          tokenInAmount: tx.tokenInAmount.toString(),
           tokenOutAmount: tx.tokenOutAmount.toString(),
-          approveHash:    tx.approveHash,
+          approveHash: tx.approveHash,
         };
       }
 
       // ── aave_supply ────────────────────────────────────────────────────────
       // Supply USDT to Aave v3 via wdk-protocol-lending-aave-evm.
-      // Falls back to a success-shaped stub if the SDK call fails so the agent
-      // loop continues cleanly during demo / testnet runs.
       case 'aave_supply': {
         const { portfolioPct } = call.params as { portfolioPct: number };
         const amount = pctToUsdt(portfolioPct, ctx.totalPortfolioUSDT);
 
-        try {
-          const tx = await lending.supply({
-            token:  TOKEN_ADDRESSES.USDT,
-            amount,
-          });
+        const tx = await lending.supply({
+          token: TOKEN_ADDRESSES.USDT,
+          amount,
+        });
 
-          return {
-            tool:           'aave_supply',
-            ok:             true,
-            hash:           tx.hash,
-            amountSupplied: amount.toString(),
-            aTokenReceived: amount.toString(), // aUSDT minted 1:1 at supply
-          };
-        } catch {
-          // Stub success — Aave endpoint may not be reachable on testnet
-          return {
-            tool:           'aave_supply',
-            ok:             true,
-            hash:           stubHash('aave_supply'),
-            amountSupplied: amount.toString(),
-            aTokenReceived: amount.toString(),
-          };
-        }
+        return {
+          tool: 'aave_supply',
+          ok: true,
+          hash: tx.hash,
+          amountSupplied: amount.toString(),
+          aTokenReceived: amount.toString(), // aUSDT minted 1:1 at supply
+        };
       }
 
       // ── aave_withdraw ──────────────────────────────────────────────────────
@@ -179,27 +179,17 @@ export async function runTool(
         const { portfolioPct } = call.params as { portfolioPct: number };
         const amount = pctToUsdt(portfolioPct, ctx.totalPortfolioUSDT);
 
-        try {
-          const tx = await lending.withdraw({
-            token:  TOKEN_ADDRESSES.USDT,
-            amount,
-          });
+        const tx = await lending.withdraw({
+          token: TOKEN_ADDRESSES.USDT,
+          amount,
+        });
 
-          return {
-            tool:            'aave_withdraw',
-            ok:              true,
-            hash:            tx.hash,
-            amountWithdrawn: amount.toString(),
-          };
-        } catch {
-          // Stub success — Aave endpoint may not be reachable on testnet
-          return {
-            tool:            'aave_withdraw',
-            ok:              true,
-            hash:            stubHash('aave_withdraw'),
-            amountWithdrawn: amount.toString(),
-          };
-        }
+        return {
+          tool: 'aave_withdraw',
+          ok: true,
+          hash: tx.hash,
+          amountWithdrawn: amount.toString(),
+        };
       }
 
       // ── get_wallet_balances ────────────────────────────────────────────────
@@ -214,16 +204,16 @@ export async function runTool(
         const rawBalances = await (ctx.evmAccount as any).getBalances?.();
 
         const balances: Record<WDKAsset | 'USDT_lent', string> = rawBalances ?? {
-          USDT:      ctx.totalPortfolioUSDT.toString(),
+          USDT: ctx.totalPortfolioUSDT.toString(),
           USDT_lent: '0',
-          ETH:       '0',
-          BTC:       '0',
-          XAUT:      '0',
+          ETH: '0',
+          BTC: '0',
+          XAUT: '0',
         };
 
         return {
-          tool:     'get_wallet_balances',
-          ok:       true,
+          tool: 'get_wallet_balances',
+          ok: true,
           balances,
         };
       }
@@ -232,17 +222,17 @@ export async function runTool(
       // Agent calls this when all actions are done (or when it decides to stop).
       case 'execution_complete': {
         return {
-          tool:    'execution_complete',
-          ok:      true,
+          tool: 'execution_complete',
+          ok: true,
           summary: call.params['summary'] as any,
         };
       }
 
       default:
         return {
-          tool:      call.tool,
-          ok:        false,
-          error:     `Unknown tool: ${call.tool}`,
+          tool: call.tool,
+          ok: false,
+          error: `Unknown tool: ${call.tool}`,
           retryable: false,
         };
     }
@@ -252,9 +242,9 @@ export async function runTool(
     const retryable = msg.includes('nonce') || msg.includes('timeout') || msg.includes('RPC');
 
     return {
-      tool:      call.tool,
-      ok:        false,
-      error:     msg,
+      tool: call.tool,
+      ok: false,
+      error: msg,
       retryable,
     };
   }

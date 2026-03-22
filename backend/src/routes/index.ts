@@ -4,6 +4,7 @@ import docsRoute from './docs.route';
 import signalRoute from './signal.route';
 import strategyRoute from './strategy.route';
 import authRoute from './auth.route';
+import executionRoute from './execution.route';
 
 const router = express.Router();
 
@@ -23,6 +24,10 @@ const defaultRoutes = [
   {
     path: '/auth',
     route: authRoute,
+  },
+  {
+    path: '/execution',
+    route: executionRoute,
   },
 ];
 
