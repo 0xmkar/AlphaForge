@@ -77,6 +77,8 @@ Polymarket markets
   -> Investment history
 ```
 
+![AlphaForge system flow](./user-flow.png)
+
 ## The Forge In One Sentence
 
 AlphaForge takes live market belief, tempers it through AI reasoning and risk controls, and forges it into executable onchain strategy.
@@ -132,6 +134,8 @@ That simplicity is part of the product thesis. The complexity should live inside
 ## Main Pipeline
 
 The primary user action is `GET /v1/signals`.
+
+![AlphaForge data flow](./data-flow.png)
 
 When the frontend runs this endpoint, the backend currently:
 
