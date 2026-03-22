@@ -1,5 +1,6 @@
 import express from 'express';
 import * as signalController from '../controllers/signal.controller';
+import { authenticate } from '../middlewares/auth.middleware';
 
 const router = express.Router();
 
@@ -61,6 +62,6 @@ const router = express.Router();
  *                       confidence:
  *                         type: number
  */
-router.get('/', signalController.getSignals);
+router.get('/', authenticate, signalController.getSignals);
 
 export default router;

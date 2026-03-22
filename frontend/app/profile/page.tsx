@@ -28,37 +28,83 @@ interface ProfileData {
   balances: Balances;
 }
 
+/* ─── Signal types ─────────────────────────────────────────────────── */
+interface SignalOutput {
+  market: string;
+  is_relevant: boolean;
+  categories: {
+    crypto_direct: boolean;
+    macro: boolean;
+    political: boolean;
+    sentiment: boolean;
+    second_order: boolean;
+  };
+  impact_direction: "bullish" | "bearish" | "neutral" | "uncertain";
+  affected_assets: string[];
+  time_horizon: "short" | "mid" | "long";
+  reasoning: string;
+  confidence: number;
+  percentage_yes?: number;
+  percentage_no?: number;
+  volume?: number;
+}
+
+interface SignalStrategy {
+  dominant_regime: string;
+  overall_confidence: number;
+  signal_summary: string;
+  time_horizon: string;
+}
+
+interface SignalResponse {
+  status: string;
+  count: number;
+  data: SignalOutput[];
+  strategy: SignalStrategy;
+}
+
 /* ─── Currency meta ──────────────────────────────────────────────────── */
-const CURRENCIES: { key: keyof Balances; label: string; icon: string; color: string; glow: string }[] = [
-  {
-    key: "ETH",
-    label: "Ethereum",
-    icon: "Ξ",
-    color: "linear-gradient(135deg, #627eea 0%, #a5b4fc 100%)",
-    glow: "rgba(98,126,234,0.35)",
-  },
-  {
-    key: "USDT",
-    label: "Tether USD",
-    icon: "₮",
-    color: "linear-gradient(135deg, #26a17b 0%, #4fd1a5 100%)",
-    glow: "rgba(38,161,123,0.35)",
-  },
-  {
-    key: "BTC",
-    label: "Bitcoin",
-    icon: "₿",
-    color: "linear-gradient(135deg, #f7931a 0%, #fbbf24 100%)",
-    glow: "rgba(247,147,26,0.35)",
-  },
-  {
-    key: "XAUT",
-    label: "Tether Gold",
-    icon: "✦",
-    color: "linear-gradient(135deg, #d4af37 0%, #f5e17a 100%)",
-    glow: "rgba(212,175,55,0.35)",
-  },
-];
+const CURRENCIES: {
+  key: keyof Balances;
+  label: string;
+  icon: string;
+  color: string;
+  glow: string;
+  decimals: number;
+}[] = [
+    {
+      key: "ETH",
+      label: "Ethereum",
+      icon: "Ξ",
+      color: "linear-gradient(135deg, #627eea 0%, #a5b4fc 100%)",
+      glow: "rgba(98,126,234,0.35)",
+      decimals: 18,
+    },
+    {
+      key: "USDT",
+      label: "Tether USD",
+      icon: "₮",
+      color: "linear-gradient(135deg, #26a17b 0%, #4fd1a5 100%)",
+      glow: "rgba(38,161,123,0.35)",
+      decimals: 6,
+    },
+    {
+      key: "BTC",
+      label: "Bitcoin",
+      icon: "₿",
+      color: "linear-gradient(135deg, #f7931a 0%, #fbbf24 100%)",
+      glow: "rgba(247,147,26,0.35)",
+      decimals: 8,
+    },
+    {
+      key: "XAUT",
+      label: "Tether Gold",
+      icon: "✦",
+      color: "linear-gradient(135deg, #d4af37 0%, #f5e17a 100%)",
+      glow: "rgba(212,175,55,0.35)",
+      decimals: 6,
+    },
+  ];
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 function shortenAddress(addr: string) {
@@ -66,13 +112,47 @@ function shortenAddress(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-function formatBalance(raw: string) {
-  const num = parseFloat(raw);
-  if (isNaN(num)) return "—";
-  if (num === 0) return "0.000";
-  if (num < 0.0001) return "< 0.0001";
-  return num.toLocaleString("en-US", { maximumFractionDigits: 6 });
+function formatBalance(raw: string | undefined, decimals: number) {
+  if (!raw || raw === "0") return "0.00";
+
+  try {
+    // We treat the raw string as a BigInt string from the backend
+    const s = raw.padStart(decimals + 1, "0");
+    const pivot = s.length - decimals;
+    const integerPart = s.slice(0, pivot);
+    let fractionalPart = s.slice(pivot);
+
+    // Trim trailing zeros but keep at least 2 for aesthetics
+    fractionalPart = fractionalPart.replace(/0+$/, "");
+    if (fractionalPart.length < 2) {
+      fractionalPart = fractionalPart.padEnd(2, "0");
+    }
+
+    // Add commas to integer part for readability
+    const formattedInteger = BigInt(integerPart).toLocaleString("en-US");
+
+    return `${formattedInteger}.${fractionalPart}`;
+  } catch (e) {
+    console.error("Format error:", e);
+    return "0.00";
+  }
 }
+
+/* ─── Signal helpers ─────────────────────────────────────────────────── */
+const DIRECTION_META: Record<string, { label: string; color: string; bg: string }> = {
+  bullish: { label: "Bullish ↑", color: "#4fd1a5", bg: "rgba(79,209,165,0.12)" },
+  bearish: { label: "Bearish ↓", color: "#ff6b6b", bg: "rgba(255,107,107,0.12)" },
+  neutral: { label: "Neutral —", color: "#a0a0b0", bg: "rgba(160,160,176,0.10)" },
+  uncertain: { label: "Uncertain ?", color: "#ffb347", bg: "rgba(255,179,71,0.12)" },
+};
+
+const REGIME_LABELS: Record<string, string> = {
+  risk_on: "🔥 Risk On",
+  risk_off: "🛡️ Risk Off",
+  gold_hedge: "✨ Gold Hedge",
+  yield_farm: "🌱 Yield Farm",
+  neutral: "— Neutral",
+};
 
 /* ─── Page ──────────────────────────────────────────────────────────── */
 export default function ProfilePage() {
@@ -82,6 +162,12 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+
+  // Signal state
+  const [signalData, setSignalData] = useState<SignalResponse | null>(null);
+  const [signalLoading, setSignalLoading] = useState(false);
+  const [signalError, setSignalError] = useState<string | null>(null);
+  const [signalFired, setSignalFired] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("alphaforge_token");
@@ -120,6 +206,27 @@ export default function ProfilePage() {
   const handleLogout = () => {
     localStorage.removeItem("alphaforge_token");
     router.push("/login");
+  };
+
+  const handleRunSignals = async () => {
+    const token = localStorage.getItem("alphaforge_token");
+    if (!token) return;
+    setSignalFired(true);
+    setSignalLoading(true);
+    setSignalError(null);
+    setSignalData(null);
+    try {
+      const res = await fetch(`${API_BASE}/v1/signals/30`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Signal fetch failed");
+      setSignalData(json);
+    } catch (err: any) {
+      setSignalError(err.message ?? "Unknown error");
+    } finally {
+      setSignalLoading(false);
+    }
   };
 
   /* ── Shared backgrounds ── */
@@ -267,7 +374,7 @@ export default function ProfilePage() {
           top: 0,
           left: 0,
           right: 0,
-          zIndex: 50,
+          zIndex: 30,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -324,7 +431,7 @@ export default function ProfilePage() {
       {/* ─── Content ────────────────────────────────────────────────── */}
       <div
         style={{
-          maxWidth: 760,
+          maxWidth: 1140,
           margin: "0 auto",
           padding: "7rem 1.5rem 4rem",
           position: "relative",
@@ -367,303 +474,833 @@ export default function ProfilePage() {
           </h1>
         </motion.div>
 
-        {/* ── Identity card ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.1 }}
+        {/* ─── Two-column layout wrapper ─────────────────────────── */}
+        <div
           style={{
-            background: "rgba(26,20,16,0.85)",
-            border: "1px solid rgba(255,69,0,0.18)",
-            borderRadius: "1.25rem",
-            boxShadow:
-              "0 0 0 1px rgba(255,107,0,0.07), 0 8px 48px rgba(0,0,0,0.45), 0 0 60px rgba(255,69,0,0.05)",
-            backdropFilter: "blur(16px)",
-            padding: "2rem 2.25rem",
-            marginBottom: "1.5rem",
-            position: "relative",
-            overflow: "hidden",
+            display: "grid",
+            gridTemplateColumns: "1fr 340px",
+            gap: "1.5rem",
+            alignItems: "start",
           }}
         >
-          {/* top accent line */}
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: "15%",
-              right: "15%",
-              height: 1,
-              background:
-                "linear-gradient(90deg, transparent, rgba(255,107,0,0.55), transparent)",
-            }}
-          />
+          {/* ── LEFT COLUMN ── */}
+          <div>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: "1.5rem",
-            }}
-          >
-            {/* Avatar + identity */}
-            <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-              {/* Avatar circle */}
+            {/* ── Identity card ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.1 }}
+              style={{
+                background: "rgba(26,20,16,0.85)",
+                border: "1px solid rgba(255,69,0,0.18)",
+                borderRadius: "1.25rem",
+                boxShadow:
+                  "0 0 0 1px rgba(255,107,0,0.07), 0 8px 48px rgba(0,0,0,0.45), 0 0 60px rgba(255,69,0,0.05)",
+                backdropFilter: "blur(16px)",
+                padding: "2rem 2.25rem",
+                marginBottom: "1.5rem",
+                position: "relative",
+                overflow: "hidden",
+              }}
+            >
+              {/* top accent line */}
               <div
                 style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg, var(--lava-core), var(--lava-glow))",
+                  position: "absolute",
+                  top: 0,
+                  left: "15%",
+                  right: "15%",
+                  height: 1,
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(255,107,0,0.55), transparent)",
+                }}
+              />
+
+              <div
+                style={{
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "1.5rem",
-                  fontWeight: 700,
-                  color: "#fff",
-                  fontFamily: "Outfit, sans-serif",
-                  boxShadow: "0 0 20px rgba(255,69,0,0.4)",
-                  flexShrink: 0,
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "1.5rem",
                 }}
               >
-                {user.email.charAt(0).toUpperCase()}
+                {/* Avatar + identity */}
+                <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
+                  {/* Avatar circle */}
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, var(--lava-core), var(--lava-glow))",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1.5rem",
+                      fontWeight: 700,
+                      color: "#fff",
+                      fontFamily: "Outfit, sans-serif",
+                      boxShadow: "0 0 20px rgba(255,69,0,0.4)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {user.email.charAt(0).toUpperCase()}
+                  </div>
+
+                  <div>
+                    {user.name && (
+                      <p
+                        style={{
+                          fontFamily: "Outfit, sans-serif",
+                          fontWeight: 700,
+                          fontSize: "1.1rem",
+                          color: "var(--stone-light)",
+                          marginBottom: "0.2rem",
+                        }}
+                      >
+                        {user.name}
+                      </p>
+                    )}
+                    <p
+                      style={{
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: "0.9rem",
+                        color: "var(--stone-dark)",
+                      }}
+                    >
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Deposit button */}
+                <motion.button
+                  onClick={() => setDepositOpen(true)}
+                  whileHover={{
+                    scale: 1.05,
+                    boxShadow: "0 0 28px rgba(255,69,0,0.6), 0 0 60px rgba(255,107,0,0.25)",
+                  }}
+                  whileTap={{ scale: 0.96 }}
+                  style={{
+                    padding: "0.65rem 1.8rem",
+                    borderRadius: "0.5rem",
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: "Outfit, sans-serif",
+                    fontWeight: 600,
+                    fontSize: "0.9rem",
+                    letterSpacing: "0.05em",
+                    background: "linear-gradient(135deg, var(--lava-core), var(--lava-glow))",
+                    color: "#fff",
+                    boxShadow: "0 0 16px rgba(255,69,0,0.35), 0 0 40px rgba(255,107,0,0.12)",
+                    alignSelf: "center",
+                  }}
+                >
+                  ↓ Deposit
+                </motion.button>
               </div>
 
-              <div>
-                {user.name && (
+              {/* Wallet row */}
+              <div
+                style={{
+                  marginTop: "1.5rem",
+                  paddingTop: "1.25rem",
+                  borderTop: "1px solid rgba(255,255,255,0.06)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "0.75rem",
+                }}
+              >
+                <div>
                   <p
                     style={{
                       fontFamily: "Outfit, sans-serif",
-                      fontWeight: 700,
-                      fontSize: "1.1rem",
-                      color: "var(--stone-light)",
-                      marginBottom: "0.2rem",
+                      fontSize: "0.68rem",
+                      letterSpacing: "0.22em",
+                      textTransform: "uppercase",
+                      color: "var(--stone-dark)",
+                      marginBottom: "0.35rem",
                     }}
                   >
-                    {user.name}
+                    Wallet Address
                   </p>
-                )}
-                <p
+                  <p
+                    style={{
+                      fontFamily: "\"Courier New\", monospace",
+                      fontSize: "0.88rem",
+                      color: "var(--stone-mid)",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {user.wallet}
+                  </p>
+                </div>
+
+                <motion.button
+                  onClick={handleCopy}
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
                   style={{
-                    fontFamily: "Inter, sans-serif",
-                    fontSize: "0.9rem",
-                    color: "var(--stone-dark)",
+                    padding: "0.45rem 1rem",
+                    borderRadius: "0.4rem",
+                    border: "1px solid rgba(255,69,0,0.25)",
+                    background: "transparent",
+                    cursor: "pointer",
+                    fontFamily: "Outfit, sans-serif",
+                    fontWeight: 600,
+                    fontSize: "0.78rem",
+                    letterSpacing: "0.06em",
+                    color: copied ? "var(--lava-hot)" : "var(--stone-dark)",
+                    transition: "color 0.2s",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {user.email}
-                </p>
+                  {copied ? "✓ Copied" : "Copy"}
+                </motion.button>
               </div>
-            </div>
+            </motion.div>
 
-            {/* Deposit button */}
-            <motion.button
-              onClick={() => setDepositOpen(true)}
-              whileHover={{
-                scale: 1.05,
-                boxShadow: "0 0 28px rgba(255,69,0,0.6), 0 0 60px rgba(255,107,0,0.25)",
-              }}
-              whileTap={{ scale: 0.96 }}
-              style={{
-                padding: "0.65rem 1.8rem",
-                borderRadius: "0.5rem",
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "Outfit, sans-serif",
-                fontWeight: 600,
-                fontSize: "0.9rem",
-                letterSpacing: "0.05em",
-                background: "linear-gradient(135deg, var(--lava-core), var(--lava-glow))",
-                color: "#fff",
-                boxShadow: "0 0 16px rgba(255,69,0,0.35), 0 0 40px rgba(255,107,0,0.12)",
-                alignSelf: "center",
-              }}
+            {/* ── Balances ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.2 }}
+              style={{ marginBottom: "1.5rem" }}
             >
-              ↓ Deposit
-            </motion.button>
-          </div>
-
-          {/* Wallet row */}
-          <div
-            style={{
-              marginTop: "1.5rem",
-              paddingTop: "1.25rem",
-              borderTop: "1px solid rgba(255,255,255,0.06)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: "0.75rem",
-            }}
-          >
-            <div>
               <p
                 style={{
                   fontFamily: "Outfit, sans-serif",
                   fontSize: "0.68rem",
-                  letterSpacing: "0.22em",
+                  letterSpacing: "0.3em",
                   textTransform: "uppercase",
                   color: "var(--stone-dark)",
-                  marginBottom: "0.35rem",
+                  marginBottom: "1rem",
                 }}
               >
-                Wallet Address
+                Asset Balances
               </p>
-              <p
-                style={{
-                  fontFamily: "\"Courier New\", monospace",
-                  fontSize: "0.88rem",
-                  color: "var(--stone-mid)",
-                  wordBreak: "break-all",
-                }}
-              >
-                {user.wallet}
-              </p>
-            </div>
 
-            <motion.button
-              onClick={handleCopy}
-              whileHover={{ scale: 1.06 }}
-              whileTap={{ scale: 0.94 }}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                  gap: "1rem",
+                }}
+              >
+                {CURRENCIES.map((c, i) => (
+                  <motion.div
+                    key={c.key}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.25 + i * 0.08 }}
+                    whileHover={{
+                      y: -3,
+                      boxShadow: `0 0 28px ${c.glow}, 0 8px 32px rgba(0,0,0,0.4)`,
+                    }}
+                    style={{
+                      background: "rgba(26,20,16,0.8)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: "1rem",
+                      padding: "1.4rem 1.25rem",
+                      position: "relative",
+                      overflow: "hidden",
+                      boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+                      transition: "box-shadow 0.3s, transform 0.3s",
+                      cursor: "default",
+                    }}
+                  >
+                    {/* subtle tint */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        background: c.color,
+                        opacity: 0.04,
+                        pointerEvents: "none",
+                      }}
+                    />
+
+                    {/* icon */}
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: "50%",
+                        background: c.color,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "1.1rem",
+                        fontWeight: 700,
+                        color: "#fff",
+                        boxShadow: `0 0 14px ${c.glow}`,
+                        marginBottom: "0.9rem",
+                      }}
+                    >
+                      {c.icon}
+                    </div>
+
+                    <p
+                      style={{
+                        fontFamily: "Outfit, sans-serif",
+                        fontSize: "0.68rem",
+                        letterSpacing: "0.2em",
+                        textTransform: "uppercase",
+                        color: "var(--stone-dark)",
+                        marginBottom: "0.3rem",
+                      }}
+                    >
+                      {c.label}
+                    </p>
+                    <p
+                      style={{
+                        fontFamily: "\"Courier New\", monospace",
+                        fontSize: "1.05rem",
+                        fontWeight: 700,
+                        color: "var(--stone-light)",
+                      }}
+                    >
+                      {formatBalance(balances[c.key], c.decimals)}
+                    </p>
+                    <p
+                      style={{
+                        fontFamily: "Outfit, sans-serif",
+                        fontSize: "0.72rem",
+                        color: "var(--stone-dark)",
+                        marginTop: "0.1rem",
+                      }}
+                    >
+                      {c.key}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>{/* END LEFT COLUMN */}
+
+          {/* ── RIGHT COLUMN — Forge Intelligence panel ── */}
+          <div style={{ position: "sticky", top: "6rem" }}>
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.7, delay: 0.35 }}
               style={{
-                padding: "0.45rem 1rem",
-                borderRadius: "0.4rem",
-                border: "1px solid rgba(255,69,0,0.25)",
-                background: "transparent",
-                cursor: "pointer",
-                fontFamily: "Outfit, sans-serif",
-                fontWeight: 600,
-                fontSize: "0.78rem",
-                letterSpacing: "0.06em",
-                color: copied ? "var(--lava-hot)" : "var(--stone-dark)",
-                transition: "color 0.2s",
-                whiteSpace: "nowrap",
+                background: "rgba(20,14,10,0.92)",
+                border: "1px solid rgba(255,69,0,0.22)",
+                borderRadius: "1.4rem",
+                padding: "2rem 1.75rem",
+                position: "relative",
+                overflow: "hidden",
+                boxShadow:
+                  "0 0 0 1px rgba(255,107,0,0.06), 0 12px 60px rgba(0,0,0,0.55), 0 0 80px rgba(255,69,0,0.06)",
               }}
             >
-              {copied ? "✓ Copied" : "Copy"}
-            </motion.button>
-          </div>
-        </motion.div>
-
-        {/* ── Balances ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.2 }}
-          style={{ marginBottom: "1.5rem" }}
-        >
-          <p
-            style={{
-              fontFamily: "Outfit, sans-serif",
-              fontSize: "0.68rem",
-              letterSpacing: "0.3em",
-              textTransform: "uppercase",
-              color: "var(--stone-dark)",
-              marginBottom: "1rem",
-            }}
-          >
-            Asset Balances
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-              gap: "1rem",
-            }}
-          >
-            {CURRENCIES.map((c, i) => (
-              <motion.div
-                key={c.key}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.25 + i * 0.08 }}
-                whileHover={{
-                  y: -3,
-                  boxShadow: `0 0 28px ${c.glow}, 0 8px 32px rgba(0,0,0,0.4)`,
-                }}
+              {/* top accent glow */}
+              <div
                 style={{
-                  background: "rgba(26,20,16,0.8)",
-                  border: "1px solid rgba(255,255,255,0.07)",
-                  borderRadius: "1rem",
-                  padding: "1.4rem 1.25rem",
-                  position: "relative",
-                  overflow: "hidden",
-                  boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-                  transition: "box-shadow 0.3s, transform 0.3s",
-                  cursor: "default",
+                  position: "absolute",
+                  top: 0,
+                  left: "10%",
+                  right: "10%",
+                  height: 1,
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(255,107,0,0.6), transparent)",
+                }}
+              />
+              {/* ambient inner glow */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "-40%",
+                  left: "-20%",
+                  right: "-20%",
+                  height: "50%",
+                  background:
+                    "radial-gradient(ellipse, rgba(255,69,0,0.07) 0%, transparent 70%)",
+                  pointerEvents: "none",
+                }}
+              />
+
+              {/* Label */}
+              <p
+                style={{
+                  fontFamily: "Outfit, sans-serif",
+                  fontSize: "0.65rem",
+                  letterSpacing: "0.35em",
+                  textTransform: "uppercase",
+                  color: "var(--lava-hot)",
+                  opacity: 0.75,
+                  marginBottom: "0.6rem",
                 }}
               >
-                {/* subtle tint */}
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background: c.color,
-                    opacity: 0.04,
-                    pointerEvents: "none",
-                  }}
-                />
+                Forge Intelligence
+              </p>
 
-                {/* icon */}
-                <div
+              {/* Title */}
+              <p
+                style={{
+                  fontFamily: "Outfit, sans-serif",
+                  fontWeight: 700,
+                  fontSize: "1.25rem",
+                  color: "var(--stone-light)",
+                  marginBottom: "0.6rem",
+                  lineHeight: 1.3,
+                }}
+              >
+                AI Signal Analysis
+              </p>
+
+              {/* Description */}
+              <p
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: "0.8rem",
+                  color: "var(--stone-dark)",
+                  lineHeight: 1.65,
+                  marginBottom: "1.6rem",
+                }}
+              >
+                Fetch live Polymarket signals, run the strategy agent, and surface macro opportunities shaping your portfolio.
+              </p>
+
+              {/* Feature pills */}
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.45rem",
+                  marginBottom: "1.75rem",
+                }}
+              >
+                {["Live Markets", "Macro Signals", "Regime Detection", "Asset Scoring"].map((tag) => (
+                  <span
+                    key={tag}
+                    style={{
+                      fontFamily: "Outfit, sans-serif",
+                      fontSize: "0.62rem",
+                      fontWeight: 600,
+                      letterSpacing: "0.08em",
+                      padding: "0.2rem 0.6rem",
+                      borderRadius: "999px",
+                      background: "rgba(255,69,0,0.08)",
+                      border: "1px solid rgba(255,69,0,0.18)",
+                      color: "rgba(255,130,60,0.85)",
+                    }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div
+                style={{
+                  height: 1,
+                  background: "rgba(255,255,255,0.06)",
+                  marginBottom: "1.5rem",
+                }}
+              />
+
+              {/* Run button */}
+              <motion.button
+                onClick={handleRunSignals}
+                disabled={signalLoading}
+                whileHover={
+                  !signalLoading
+                    ? {
+                      scale: 1.03,
+                      boxShadow:
+                        "0 0 32px rgba(255,69,0,0.55), 0 0 80px rgba(255,107,0,0.2)",
+                    }
+                    : {}
+                }
+                whileTap={!signalLoading ? { scale: 0.97 } : {}}
+                style={{
+                  width: "100%",
+                  padding: "0.9rem 1.6rem",
+                  borderRadius: "0.65rem",
+                  border: "none",
+                  background: signalLoading
+                    ? "rgba(255,69,0,0.08)"
+                    : "linear-gradient(135deg, var(--lava-core), var(--lava-glow))",
+                  cursor: signalLoading ? "not-allowed" : "pointer",
+                  fontFamily: "Outfit, sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.95rem",
+                  letterSpacing: "0.04em",
+                  color: signalLoading ? "var(--stone-dark)" : "#fff",
+                  boxShadow: signalLoading
+                    ? "none"
+                    : "0 0 20px rgba(255,69,0,0.4), 0 0 50px rgba(255,107,0,0.12)",
+                  transition: "all 0.3s",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.55rem",
+                }}
+              >
+                {signalLoading ? (
+                  <>
+                    <motion.span
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1.8, repeat: Infinity, ease: "linear" }}
+                      style={{ display: "inline-block", fontSize: "1rem" }}
+                    >
+                      ⦵
+                    </motion.span>
+                    Forging…
+                  </>
+                ) : signalFired && signalData ? (
+                  "↺ Refresh Analysis"
+                ) : (
+                  "⚡ Run Forge"
+                )}
+              </motion.button>
+
+              {/* Loading indicator */}
+              {signalLoading && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  style={{ marginTop: "1.25rem" }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.6rem",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    <motion.div
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.4, repeat: Infinity }}
+                      style={{
+                        width: 5,
+                        height: 5,
+                        borderRadius: "50%",
+                        background: "var(--lava-glow)",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <p
+                      style={{
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: "0.75rem",
+                        color: "var(--stone-dark)",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Analysing Polymarket signals… up to 30s.
+                    </p>
+                  </div>
+                  <motion.div
+                    initial={{ width: "0%" }}
+                    animate={{ width: "95%" }}
+                    transition={{ duration: 42, ease: "easeOut" }}
+                    style={{
+                      height: 2,
+                      borderRadius: 1,
+                      background: "linear-gradient(90deg, var(--lava-core), var(--lava-glow))",
+                    }}
+                  />
+                </motion.div>
+              )}
+
+              {/* Signal error */}
+              {signalError && !signalLoading && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "50%",
-                    background: c.color,
+                    marginTop: "1rem",
+                    fontSize: "0.78rem",
+                    color: "#ff6b6b",
+                    fontFamily: "Inter, sans-serif",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  ⚠️ {signalError}
+                </motion.p>
+              )}
+
+              {/* Status chip when done */}
+              {signalFired && signalData && !signalLoading && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  style={{
+                    marginTop: "1rem",
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.1rem",
-                    fontWeight: 700,
-                    color: "#fff",
-                    boxShadow: `0 0 14px ${c.glow}`,
-                    marginBottom: "0.9rem",
+                    gap: "0.5rem",
+                    padding: "0.55rem 0.9rem",
+                    borderRadius: "0.6rem",
+                    background: "rgba(79,209,165,0.08)",
+                    border: "1px solid rgba(79,209,165,0.2)",
                   }}
                 >
-                  {c.icon}
-                </div>
+                  <span style={{ color: "#4fd1a5", fontSize: "0.85rem" }}>✓</span>
+                  <p
+                    style={{
+                      fontFamily: "Outfit, sans-serif",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#4fd1a5",
+                    }}
+                  >
+                    {signalData.count} signals analysed
+                  </p>
+                </motion.div>
+              )}
+            </motion.div>
+          </div>{/* END RIGHT COLUMN */}
+        </div>{/* END TWO-COLUMN GRID */}
 
-                <p
-                  style={{
-                    fontFamily: "Outfit, sans-serif",
-                    fontSize: "0.68rem",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    color: "var(--stone-dark)",
-                    marginBottom: "0.3rem",
-                  }}
-                >
-                  {c.label}
-                </p>
-                <p
-                  style={{
-                    fontFamily: "\"Courier New\", monospace",
-                    fontSize: "1.05rem",
-                    fontWeight: 700,
-                    color: "var(--stone-light)",
-                  }}
-                >
-                  {formatBalance(balances[c.key])}
-                </p>
-                <p
-                  style={{
-                    fontFamily: "Outfit, sans-serif",
-                    fontSize: "0.72rem",
-                    color: "var(--stone-dark)",
-                    marginTop: "0.1rem",
-                  }}
-                >
-                  {c.key}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+        {/* ── Signal results ── */}
+        {signalData && !signalLoading && (
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            style={{ marginBottom: "3rem", marginTop: "1.5rem" }}
+          >
+            {/* Strategy header */}
+            <div
+              style={{
+                background: "rgba(26,20,16,0.9)",
+                border: "1px solid rgba(255,69,0,0.2)",
+                borderRadius: "1.25rem",
+                padding: "1.6rem 2rem",
+                marginBottom: "1rem",
+                position: "relative",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: "10%",
+                  right: "10%",
+                  height: 1,
+                  background: "linear-gradient(90deg, transparent, rgba(255,107,0,0.5), transparent)",
+                }}
+              />
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+                <div>
+                  <p
+                    style={{
+                      fontFamily: "Outfit, sans-serif",
+                      fontSize: "0.68rem",
+                      letterSpacing: "0.3em",
+                      textTransform: "uppercase",
+                      color: "var(--stone-dark)",
+                      marginBottom: "0.4rem",
+                    }}
+                  >
+                    Strategy Output
+                  </p>
+                  <p
+                    style={{
+                      fontFamily: "Outfit, sans-serif",
+                      fontSize: "1.3rem",
+                      fontWeight: 700,
+                      color: "var(--lava-hot)",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    {REGIME_LABELS[signalData.strategy.dominant_regime] ?? signalData.strategy.dominant_regime}
+                  </p>
+                  <p
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: "0.83rem",
+                      color: "var(--stone-dark)",
+                      lineHeight: 1.6,
+                      maxWidth: 520,
+                    }}
+                  >
+                    {signalData.strategy.signal_summary}
+                  </p>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <p style={{ fontFamily: "Outfit, sans-serif", fontSize: "0.68rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--stone-dark)", marginBottom: "0.3rem" }}>Confidence</p>
+                  <p
+                    style={{
+                      fontFamily: "Outfit, sans-serif",
+                      fontSize: "2rem",
+                      fontWeight: 800,
+                      background: "linear-gradient(135deg, var(--lava-hot), var(--lava-core))",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                    }}
+                  >
+                    {Math.round(signalData.strategy.overall_confidence * 100)}%
+                  </p>
+                  <p style={{ fontFamily: "Outfit, sans-serif", fontSize: "0.72rem", color: "var(--stone-dark)" }}>
+                    {signalData.count} signals · {signalData.strategy.time_horizon} term
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Signal cards */}
+            <p
+              style={{
+                fontFamily: "Outfit, sans-serif",
+                fontSize: "0.68rem",
+                letterSpacing: "0.3em",
+                textTransform: "uppercase",
+                color: "var(--stone-dark)",
+                marginBottom: "0.85rem",
+              }}
+            >
+              Relevant Signals
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {signalData.data.map((sig, i) => {
+                const dir = DIRECTION_META[sig.impact_direction] ?? DIRECTION_META.neutral;
+                const confPct = Math.round(sig.confidence * 100);
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: i * 0.04 }}
+                    style={{
+                      background: "rgba(20,15,12,0.8)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: "0.9rem",
+                      padding: "1.1rem 1.25rem",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p
+                          style={{
+                            fontFamily: "Outfit, sans-serif",
+                            fontWeight: 600,
+                            fontSize: "0.9rem",
+                            color: "var(--stone-light)",
+                            marginBottom: "0.5rem",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={sig.market}
+                        >
+                          {sig.market}
+                        </p>
+                        <p
+                          style={{
+                            fontFamily: "Inter, sans-serif",
+                            fontSize: "0.78rem",
+                            color: "var(--stone-dark)",
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          {sig.reasoning}
+                        </p>
+                        {/* Assets + horizon tags */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.65rem" }}>
+                          {sig.affected_assets.map((a) => (
+                            <span
+                              key={a}
+                              style={{
+                                fontFamily: "Outfit, sans-serif",
+                                fontSize: "0.65rem",
+                                fontWeight: 600,
+                                letterSpacing: "0.1em",
+                                padding: "0.2rem 0.55rem",
+                                borderRadius: "999px",
+                                background: "rgba(255,179,71,0.1)",
+                                border: "1px solid rgba(255,179,71,0.2)",
+                                color: "var(--lava-hot)",
+                              }}
+                            >
+                              {a}
+                            </span>
+                          ))}
+                          <span
+                            style={{
+                              fontFamily: "Outfit, sans-serif",
+                              fontSize: "0.65rem",
+                              letterSpacing: "0.1em",
+                              padding: "0.2rem 0.55rem",
+                              borderRadius: "999px",
+                              background: "rgba(255,255,255,0.05)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                              color: "var(--stone-dark)",
+                            }}
+                          >
+                            {sig.time_horizon} term
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right: direction badge + confidence */}
+                      <div style={{ flexShrink: 0, textAlign: "right", minWidth: 80 }}>
+                        <span
+                          style={{
+                            fontFamily: "Outfit, sans-serif",
+                            fontSize: "0.7rem",
+                            fontWeight: 600,
+                            letterSpacing: "0.05em",
+                            padding: "0.25rem 0.7rem",
+                            borderRadius: "999px",
+                            background: dir.bg,
+                            color: dir.color,
+                            display: "inline-block",
+                            marginBottom: "0.5rem",
+                          }}
+                        >
+                          {dir.label}
+                        </span>
+                        {/* Confidence bar */}
+                        <div style={{ marginTop: "0.25rem" }}>
+                          <p style={{ fontFamily: "Outfit, sans-serif", fontSize: "0.65rem", color: "var(--stone-dark)", marginBottom: "0.2rem", textAlign: "right" }}>
+                            {confPct}% confidence
+                          </p>
+                          <div
+                            style={{
+                              width: 80,
+                              height: 3,
+                              background: "rgba(255,255,255,0.07)",
+                              borderRadius: 2,
+                              overflow: "hidden",
+                            }}
+                          >
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${confPct}%` }}
+                              transition={{ duration: 0.8, delay: 0.1 + i * 0.04 }}
+                              style={{
+                                height: "100%",
+                                borderRadius: 2,
+                                background: `linear-gradient(90deg, ${dir.color}88, ${dir.color})`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
       </div>
 
-      {/* ─── Deposit modal ───────────────────────────────────────────── */}
       {depositOpen && (
         <motion.div
           initial={{ opacity: 0 }}

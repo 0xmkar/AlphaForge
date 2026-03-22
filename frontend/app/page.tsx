@@ -242,7 +242,7 @@ export default function Home() {
             signal.
           </p>
           <motion.button
-            onClick={() => router.push("/login")}
+            onClick={() => router.push(loggedIn ? "/profile" : "/login")}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.97 }}
             style={{
@@ -261,7 +261,7 @@ export default function Home() {
                 "0 0 24px rgba(255,69,0,0.5), 0 0 60px rgba(255,107,0,0.2)",
             }}
           >
-            Access
+            Invest Now
           </motion.button>
         </motion.div>
       </section>
