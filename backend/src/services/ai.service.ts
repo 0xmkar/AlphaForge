@@ -1,5 +1,6 @@
 import { ChatGroq } from '@langchain/groq';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
+import type { Message } from '../execution-agent';
 import logger from '../utils/logger';
 import { PolymarketEvent } from './polymarket.service';
 import type { SignalOutput } from '../strategy-agent/types';
@@ -155,6 +156,21 @@ function parseLlmJson(content: string): unknown {
  */
 export const groqCallLLM = async (prompt: string): Promise<string> => {
   const response = await model.invoke([new HumanMessage(prompt)]);
+  return typeof response.content === 'string' ? response.content : '';
+};
+
+/**
+ * LangChain/Groq adapter for the Execution Agent, which requires passing the full
+ * conversation history (system prompt + user messages + assistant tool calls).
+ */
+export const groqExecutionCallLLM = async (messages: Message[]): Promise<string> => {
+  const lcMessages = messages.map(m => {
+    if (m.role === 'system')    return new SystemMessage(m.content);
+    if (m.role === 'assistant') return new AIMessage(m.content);
+    return new HumanMessage(m.content); // 'user'
+  });
+  
+  const response = await model.invoke(lcMessages);
   return typeof response.content === 'string' ? response.content : '';
 };
 

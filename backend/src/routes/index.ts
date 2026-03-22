@@ -3,6 +3,7 @@ import healthRoute from './health.route';
 import docsRoute from './docs.route';
 import signalRoute from './signal.route';
 import strategyRoute from './strategy.route';
+import authRoute from './auth.route';
 
 const router = express.Router();
 
@@ -18,6 +19,10 @@ const defaultRoutes = [
   {
     path: '/strategy',
     route: strategyRoute,
+  },
+  {
+    path: '/auth',
+    route: authRoute,
   },
 ];
 
