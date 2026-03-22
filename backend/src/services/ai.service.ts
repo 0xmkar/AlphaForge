@@ -2,6 +2,9 @@ import { ChatGroq } from '@langchain/groq';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import logger from '../utils/logger';
 import { PolymarketEvent } from './polymarket.service';
+import type { SignalOutput } from '../strategy-agent/types';
+
+export type { SignalOutput } from '../strategy-agent/types';
 
 const model = new ChatGroq({
   apiKey: process.env.GROQ_API_KEY,
@@ -54,10 +57,33 @@ For each prediction market input:
 
 ---
 
+## Reading Market Probabilities — Critical Step
+
+Before reasoning about impact direction, you MUST first interpret what the probability is saying:
+
+**Step 1 — What does the market believe about the event itself?**
+- percentage_yes < 10%  → Market is NEAR-CERTAIN this event will NOT happen
+- percentage_yes > 90%  → Market is NEAR-CERTAIN this event WILL happen
+- percentage_yes 40–60% → Market is genuinely split — outcome is uncertain
+
+**Step 2 — Set impact_direction based on this:**
+- If percentage_yes < 10%: The event is priced out. Its non-occurrence is the signal.
+  - If the event would have been crypto-bearish → its NOT happening is slightly bullish → use "bullish" or "neutral"
+  - If the event would have been crypto-bullish → its NOT happening is slightly bearish → use "bearish" or "neutral"
+  - If the event has no clear crypto link → use "neutral"
+  - ❌ NEVER use "uncertain" when yes% < 10% or > 90% — the market IS certain, you just need to interpret the direction of non-occurrence
+- If percentage_yes > 90%: High-conviction directional signal. Use "bullish", "bearish", or "neutral" with high confidence.
+- If percentage_yes 40–60%: Outcome is genuinely unknown → "uncertain" is appropriate here.
+
+**Step 3 — Set confidence to reflect how clearly the probability implies a crypto direction:**
+- High yes/no skew (< 10% or > 90%) + clear crypto link → confidence 0.7–0.9
+- High yes/no skew + unclear crypto link → confidence 0.4–0.6, direction "neutral"
+- Balanced market (40–60%) → confidence 0.3–0.5, direction "uncertain"
+
 ## Important Rules
 
 - Do NOT hallucinate facts outside the market description
-- If unclear, mark as "uncertain"
+- "uncertain" means the MARKET OUTCOME is genuinely split (40–60% range), NOT that you are unsure of the impact
 - Prefer second-order reasoning over surface-level analysis
 - Be concise but precise
 - Always output structured JSON
@@ -123,25 +149,13 @@ function parseLlmJson(content: string): unknown {
   return JSON.parse(s.trim());
 }
 
-export type SignalOutput = {
-  market: string;
-  is_relevant: boolean;
-  categories: {
-    crypto_direct: boolean;
-    macro: boolean;
-    political: boolean;
-    sentiment: boolean;
-    second_order: boolean;
-  };
-  impact_direction: 'bullish' | 'bearish' | 'neutral' | 'uncertain';
-  affected_assets: string[]; // BTC, ETH, RWA, Stablecoins etc
-  time_horizon: 'short' | 'mid' | 'long';
-  reasoning: string;
-  confidence: number; // 0–1
-  percentage_yes: number;
-  percentage_no: number;
-  volume: number;
-  people_giving_opinion: number;
+/**
+ * LangChain/Groq adapter that satisfies the `callLLM` interface expected by the Strategy Agent.
+ * Inject this wherever runStrategyAgent is called so the strategy module stays provider-agnostic.
+ */
+export const groqCallLLM = async (prompt: string): Promise<string> => {
+  const response = await model.invoke([new HumanMessage(prompt)]);
+  return typeof response.content === 'string' ? response.content : '';
 };
 
 export const analyzeMarketsBatch = async (markets: PolymarketEvent[]): Promise<SignalOutput[]> => {

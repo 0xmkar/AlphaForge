@@ -2,6 +2,7 @@ import express from 'express';
 import healthRoute from './health.route';
 import docsRoute from './docs.route';
 import signalRoute from './signal.route';
+import strategyRoute from './strategy.route';
 
 const router = express.Router();
 
@@ -13,6 +14,10 @@ const defaultRoutes = [
   {
     path: '/signals',
     route: signalRoute,
+  },
+  {
+    path: '/strategy',
+    route: strategyRoute,
   },
 ];
 
